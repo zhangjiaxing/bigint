@@ -92,6 +92,7 @@ void bigint_div(const bigint_t *a, const bigint_t  *b, uint8_t *quotient, uint8_
         bigint_bit_shift_left(&tmp, 1);
     }
     tmp = *b;
+    //FIXME
     bigint_bit_shift_left(&tmp, count);
 
     bigint_sub(a, &tmp, &tmp);
