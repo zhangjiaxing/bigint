@@ -2,6 +2,8 @@
 #include <string.h>
 #include <stdint.h>
 
+//假设C语言仅支持占用空间8bit的数字, 实现大数加减乘除
+
 typedef struct bigint{
     uint8_t data[16];  //0下标存放最低位
 } bigint_t;
@@ -9,7 +11,7 @@ typedef struct bigint{
 void bigint_add_uint(const bigint_t *a, uint8_t n, bigint_t *ret){
     uint8_t flag = 0;
     uint8_t tmp = 0; //用于保证当ret 和 a相等时, 不出错
-    for(int i=0; i<16; i++){
+    for(uint8_t i=0; i<16; i++){
         tmp = a->data[i] + n + flag;
         flag = tmp < a->data[i] | tmp < n;
         n = 0;
@@ -20,7 +22,7 @@ void bigint_add_uint(const bigint_t *a, uint8_t n, bigint_t *ret){
 void bigint_add(const bigint_t *a, const bigint_t *b, bigint_t *ret){
     uint8_t flag = 0;
     uint8_t tmp = 0;
-    for(int i=0; i<16; i++){
+    for(uint8_t i=0; i<16; i++){
         tmp = a->data[i] + b->data[i] + flag;
         flag = tmp < a->data[i] | tmp < b->data[i];
         ret->data[i] = tmp;
@@ -29,7 +31,7 @@ void bigint_add(const bigint_t *a, const bigint_t *b, bigint_t *ret){
 
 void bigint_sub(const bigint_t *a, const bigint_t *b, bigint_t *ret){
     bigint_t tmp;
-    for(int i=0; i<16; i++){
+    for(uint8_t i=0; i<16; i++){
         tmp.data[i] = ~(b->data[i]);
     }
     bigint_add_uint(&tmp, 1, &tmp);
@@ -55,7 +57,7 @@ void bigint_bit_shift_left(bigint_t *a, unsigned n){ //n最大不能超过8, 否
     int8_t overflow = 0;
     int8_t prev = 0;
 
-    for(int i=0; i<16; i++){
+    for(uint8_t i=0; i<16; i++){
         overflow = a->data[i] >> (8-n);
         a->data[i] = a->data[i] << n;
         a->data[i] |= prev;
@@ -64,18 +66,19 @@ void bigint_bit_shift_left(bigint_t *a, unsigned n){ //n最大不能超过8, 否
 }
 
 void bigint_mul(const bigint_t *a, const bigint_t  *b, bigint_t *ret){
-    memset(ret, 0, sizeof(ret));
+    bigint_t tmp_ret = {}; //为了在ret和a或者b相等时,不出错, 不能直接修改ret
     bigint_t tmp = *a;
     for(uint8_t i=0; i<16; i++){
         uint8_t bytes = b->data[i];
         while(bytes != 0){
             if(bytes & 0x1){
-                bigint_add((const bigint_t *)ret, &tmp, ret);
+                bigint_add(&tmp_ret, &tmp, &tmp_ret);
             }
             bigint_bit_shift_left(&tmp, 1);
             bytes = bytes >> 1;
         }
     }
+    *ret = tmp_ret;
 }
 
 void bigint_div(const bigint_t *a, const bigint_t  *b, uint8_t *quotient, uint8_t *remainder){
@@ -92,7 +95,10 @@ void bigint_div(const bigint_t *a, const bigint_t  *b, uint8_t *quotient, uint8_
         bigint_bit_shift_left(&tmp, 1);
     }
     tmp = *b;
-    //FIXME
+    while(count >= 8){
+        bigint_bit_shift_left(&tmp, 8);
+        count -= 8;
+    }
     bigint_bit_shift_left(&tmp, count);
 
     bigint_sub(a, &tmp, &tmp);
@@ -121,40 +127,49 @@ void test_add(){
     bigint_t ret;
     bigint_add(&d1, &d2, &ret);
     print_mem((void *) &ret, 16);
+}
 
-    bigint_sub(&ret, &d1, &d1);
-    print_mem((void *) &d1, 16);
+void test_sub(){
+    bigint_t d1 = {};
+    bigint_t d2 = {};
+    bigint_add_uint(&d1, 128, &d1);
+    bigint_add_uint(&d2, 127, &d2);
+    
+    bigint_t ret;
+    bigint_sub(&d1, &d2, &ret);
+    print_mem((void *) &ret, 16);
 }
 
 void test_mul(){
     bigint_t n1 = {};
-    bigint_add_uint(&n1, 255, &n1);
-    print_mem((void *) &n1, 16);
-
-    bigint_t n2 = {};
-    bigint_add_uint(&n2, 255, &n2);
+    bigint_add_uint(&n1, 100, &n1);
 
     bigint_t ret;
-
+    bigint_t ret2 = {};
     bigint_mul(&n1, &n1, &ret);
-    bigint_mul(&ret, &n1, &n2);
-    bigint_mul(&n2, &n1, &ret);
-    bigint_mul(&ret, &n1, &n2);
-    bigint_mul(&n2, &n1, &ret);
-
-    print_mem((void *) &ret, 16);
+    bigint_mul(&ret, &n1, &ret2);
+    //bigint_mul(&ret, &n1, &ret);
+    print_mem((void *) &ret2, 16);
 }
 
-int main(){
+void test_div(){
     bigint_t n1 = {};
-    bigint_add_uint(&n1, 27, &n1);
+    bigint_add_uint(&n1, 127, &n1);
 
     bigint_t n2 = {};
-    bigint_add_uint(&n2, 5, &n2);
+    bigint_add_uint(&n2, 12, &n2);
 
     uint8_t quot, remain;
     bigint_div(&n1, &n2, &quot, &remain);
     printf("%d %d\n", quot, remain);
+
+}
+
+int main(){
+    test_add();
+    test_sub();
+    test_mul();
+    test_div();
 
     return 0;
 }
