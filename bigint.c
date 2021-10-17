@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
-
 //假设C语言仅支持占用空间8bit的数字, 实现大数加减乘除
 
 typedef struct bigint{
@@ -53,7 +52,12 @@ int8_t bigint_cmp(const bigint_t *a, const bigint_t  *b){
     }
 }
 
-void bigint_bit_shift_left(bigint_t *a, unsigned n){ //n最大不能超过8, 否则出问题
+void bigint_bit_shift_left(bigint_t *a, uint8_t n){ //n最大不能超过8, 否则出问题
+    while(n > 8){
+        n -= 8;
+        bigint_bit_shift_left(a, 8);
+    }
+
     int8_t overflow = 0;
     int8_t prev = 0;
 
@@ -81,13 +85,13 @@ void bigint_mul(const bigint_t *a, const bigint_t  *b, bigint_t *ret){
     *ret = tmp_ret;
 }
 
-void bigint_div(const bigint_t *a, const bigint_t  *b, uint8_t *quotient, uint8_t *remainder){
+void bigint_div(const bigint_t *a, const bigint_t  *b, bigint_t *quotient, bigint_t *remainder){
     uint8_t count = -1;
     bigint_t tmp = *b;
     int8_t cmp = bigint_cmp(a, &tmp);
     if(cmp < 0){
-        *quotient = 0;
-        *remainder = a->data[0];
+        memset(quotient, 0, sizeof(*quotient));  // *quotient = 0;
+        *remainder = *a;
         return;
     }
     while(bigint_cmp(a, &tmp) >= 0){
@@ -95,18 +99,33 @@ void bigint_div(const bigint_t *a, const bigint_t  *b, uint8_t *quotient, uint8_
         bigint_bit_shift_left(&tmp, 1);
     }
     tmp = *b;
-    while(count >= 8){
-        bigint_bit_shift_left(&tmp, 8);
-        count -= 8;
-    }
     bigint_bit_shift_left(&tmp, count);
 
     bigint_sub(a, &tmp, &tmp);
-    uint8_t tmp_quot, tmp_remain;
+    bigint_t tmp_quot = {}, tmp_remain = {};
     bigint_div(&tmp, b, &tmp_quot, &tmp_remain);
     
-    *quotient = (1<<count) + tmp_quot;
+    //*quotient = (1<<count) + tmp_quot;  //1<<count可能会溢出
+    bigint_t i1 = {};
+    bigint_add_uint(&i1, 1, &i1);
+    bigint_bit_shift_left(&i1, count);
+    bigint_add(&i1, &tmp_quot, &tmp_quot);
+
+    *quotient = tmp_quot;
     *remainder = tmp_remain;
+}
+
+void bigint_atoi(const char *str, bigint_t *bi){ //字符串转换为大数
+    memset(bi, 0, sizeof(*bi));
+
+    bigint_t i10 = {};
+    bigint_add_uint(&i10, 10, &i10);
+
+    while(*str != '\0'){
+        bigint_mul(bi, &i10, bi);
+        bigint_add_uint(bi, *str-'0', bi);
+        str++;
+    }
 }
 
 void print_mem(uint8_t *addr, uint8_t len){
@@ -119,21 +138,23 @@ void print_mem(uint8_t *addr, uint8_t len){
 
 
 void test_add(){
+    printf("add: \n");
     bigint_t d1 = {};
     bigint_t d2 = {};
-    bigint_add_uint(&d1, 128, &d1);
-    bigint_add_uint(&d2, 127, &d2);
-    
+    bigint_atoi("123456789", &d1);
+    bigint_atoi("123456789", &d2);
+
     bigint_t ret;
     bigint_add(&d1, &d2, &ret);
     print_mem((void *) &ret, 16);
 }
 
 void test_sub(){
+    printf("sub: \n");
     bigint_t d1 = {};
     bigint_t d2 = {};
-    bigint_add_uint(&d1, 128, &d1);
-    bigint_add_uint(&d2, 127, &d2);
+    bigint_atoi("123456789", &d1);
+    bigint_atoi("1234", &d2);
     
     bigint_t ret;
     bigint_sub(&d1, &d2, &ret);
@@ -141,28 +162,40 @@ void test_sub(){
 }
 
 void test_mul(){
+    printf("mul: \n");
     bigint_t n1 = {};
-    bigint_add_uint(&n1, 100, &n1);
+    bigint_atoi("123", &n1);
 
-    bigint_t ret;
-    bigint_t ret2 = {};
+    bigint_t n2 = {};
+    bigint_atoi("123456789", &n2); //FIXME
+
+    bigint_t ret = {};
     bigint_mul(&n1, &n1, &ret);
-    bigint_mul(&ret, &n1, &ret2);
     //bigint_mul(&ret, &n1, &ret);
-    print_mem((void *) &ret2, 16);
+    print_mem((void *) &ret, 16);
 }
 
 void test_div(){
+    printf("div: \n");
     bigint_t n1 = {};
-    bigint_add_uint(&n1, 127, &n1);
+    bigint_atoi("123456789", &n1);
 
     bigint_t n2 = {};
-    bigint_add_uint(&n2, 12, &n2);
+    bigint_atoi("1234567", &n2);
 
-    uint8_t quot, remain;
+    bigint_t quot = {}, remain = {};
     bigint_div(&n1, &n2, &quot, &remain);
-    printf("%d %d\n", quot, remain);
+    print_mem((void *) &quot, 16);
+    print_mem((void *) &remain, 16);
+    // printf("%d %d\n", quot, remain);
+}
 
+void test_atoi(){
+    printf("atoi: \n");
+    const char *s = "123456789123456789";
+    bigint_t i = {};
+    bigint_atoi(s, &i);
+    print_mem((void *) &i, 16);
 }
 
 int main(){
@@ -170,6 +203,7 @@ int main(){
     test_sub();
     test_mul();
     test_div();
+    test_atoi();
 
     return 0;
 }
