@@ -7,6 +7,9 @@ typedef struct bigint{
     uint8_t data[16];  //0下标存放最低位
 } bigint_t;
 
+void print_mem(uint8_t *addr, uint8_t len);
+void bigint_print(bigint_t *i);
+
 void bigint_add_uint(const bigint_t *a, uint8_t n, bigint_t *ret){
     uint8_t flag = 0;
     uint8_t tmp = 0; //用于保证当ret 和 a相等时, 不出错
@@ -52,7 +55,7 @@ int8_t bigint_cmp(const bigint_t *a, const bigint_t  *b){
     }
 }
 
-void bigint_bit_shift_left(bigint_t *a, uint8_t n){ //n最大不能超过8, 否则出问题
+void bigint_bit_shift_left(bigint_t *a, uint8_t n){
     while(n > 8){
         n -= 8;
         bigint_bit_shift_left(a, 8);
@@ -73,6 +76,7 @@ void bigint_mul(const bigint_t *a, const bigint_t  *b, bigint_t *ret){
     bigint_t tmp_ret = {}; //为了在ret和a或者b相等时,不出错, 不能直接修改ret
     bigint_t tmp = *a;
     for(uint8_t i=0; i<16; i++){
+        uint8_t bits = 8;
         uint8_t bytes = b->data[i];
         while(bytes != 0){
             if(bytes & 0x1){
@@ -80,7 +84,9 @@ void bigint_mul(const bigint_t *a, const bigint_t  *b, bigint_t *ret){
             }
             bigint_bit_shift_left(&tmp, 1);
             bytes = bytes >> 1;
+            bits -= 1;
         }
+        bigint_bit_shift_left(&tmp, bits);
     }
     *ret = tmp_ret;
 }
@@ -105,7 +111,6 @@ void bigint_div(const bigint_t *a, const bigint_t  *b, bigint_t *quotient, bigin
     bigint_t tmp_quot = {}, tmp_remain = {};
     bigint_div(&tmp, b, &tmp_quot, &tmp_remain);
     
-    //*quotient = (1<<count) + tmp_quot;  //1<<count可能会溢出
     bigint_t i1 = {};
     bigint_add_uint(&i1, 1, &i1);
     bigint_bit_shift_left(&i1, count);
@@ -128,6 +133,29 @@ void bigint_atoi(const char *str, bigint_t *bi){ //字符串转换为大数
     }
 }
 
+uint8_t bigint_itoa(bigint_t *bi, char *buf, uint8_t len){
+    char *pos = buf;
+    bigint_t quot = {};
+    bigint_t remain = {};
+    bigint_t i10 = {};
+    bigint_add_uint(&i10, 10, &i10);
+    bigint_div(bi, &i10, &quot, &remain);
+    if(quot.data[0] > 0){
+        pos += bigint_itoa(&quot, buf, len);
+    }
+    *pos = remain.data[0] + '0';
+    if(pos+1 < buf+len){
+        *(++pos) = '\0';
+    }
+    return pos-buf;
+}
+
+void bigint_print(bigint_t *i){
+    char buf[32];
+    bigint_itoa(i, buf, sizeof(buf));
+    printf("%s\n", buf);
+}
+
 void print_mem(uint8_t *addr, uint8_t len){
     while(len--){
         printf("%02X ", *addr);
@@ -147,6 +175,7 @@ void test_add(){
     bigint_t ret;
     bigint_add(&d1, &d2, &ret);
     print_mem((void *) &ret, 16);
+    bigint_print(&ret);
 }
 
 void test_sub(){
@@ -159,6 +188,8 @@ void test_sub(){
     bigint_t ret;
     bigint_sub(&d1, &d2, &ret);
     print_mem((void *) &ret, 16);
+   
+    bigint_print(&ret);
 }
 
 void test_mul(){
@@ -166,13 +197,17 @@ void test_mul(){
     bigint_t n1 = {};
     bigint_atoi("123", &n1);
 
-    bigint_t n2 = {};
-    bigint_atoi("123456789", &n2); //FIXME
-
     bigint_t ret = {};
     bigint_mul(&n1, &n1, &ret);
     //bigint_mul(&ret, &n1, &ret);
     print_mem((void *) &ret, 16);
+    bigint_print(&ret);
+
+    bigint_t n2 = {};
+    bigint_atoi("123456789", &n2); //FIXME
+    print_mem((void *) &n2, 16);
+    bigint_mul(&n2, &n2, &ret);
+    bigint_print(&ret);
 }
 
 void test_div(){
@@ -185,8 +220,11 @@ void test_div(){
 
     bigint_t quot = {}, remain = {};
     bigint_div(&n1, &n2, &quot, &remain);
+    
     print_mem((void *) &quot, 16);
     print_mem((void *) &remain, 16);
+    bigint_print(&quot);
+    bigint_print(&remain);
     // printf("%d %d\n", quot, remain);
 }
 
@@ -196,6 +234,10 @@ void test_atoi(){
     bigint_t i = {};
     bigint_atoi(s, &i);
     print_mem((void *) &i, 16);
+
+    char buf[32] = {"ABCDEFG"};
+    bigint_itoa(&i, buf, sizeof(buf));
+    printf("%s\n", buf);
 }
 
 int main(){
@@ -204,7 +246,6 @@ int main(){
     test_mul();
     test_div();
     test_atoi();
-
     return 0;
 }
 
