@@ -86,7 +86,7 @@ void bigint_mul(const bigint_t *a, const bigint_t  *b, bigint_t *ret){
 }
 
 void bigint_div(const bigint_t *a, const bigint_t  *b, bigint_t *quotient, bigint_t *remainder){
-    uint8_t count = -1;
+    uint8_t count = 0;
     bigint_t tmp = *b;
     int8_t cmp = bigint_cmp(a, &tmp);
     if(cmp < 0){
@@ -95,9 +95,10 @@ void bigint_div(const bigint_t *a, const bigint_t  *b, bigint_t *quotient, bigin
         return;
     }
     while(bigint_cmp(a, &tmp) >= 0){
-        count++; //a 大于等于 b * 2 ^ count. 或者说 a 大于等于 b << count
         bigint_bit_shift_left(&tmp, 1);
+        count++; //a 大于等于 b * 2 ^ count. 或者说 a 大于等于 b << count
     }
+    count--;
     tmp = *b;
     bigint_bit_shift_left(&tmp, count);
 
